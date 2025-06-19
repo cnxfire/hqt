@@ -505,8 +505,8 @@ export default {
     // 获取最终跳转URL
     async getFinalRedirectUrl(initialUrl) {
       try {
-        // 使用指定的API地址进行重定向追踪
-        const apiUrl = `/api/track-redirect?url=${encodeURIComponent(initialUrl)}`
+        // 使用代理服务器地址进行重定向追踪（通过vite.config.js代理到https://mf.ppis.me）
+        const apiUrl = `/apii/track-redirect?url=${encodeURIComponent(initialUrl)}`
         const response = await fetch(apiUrl, {
           method: 'GET',
           mode: 'cors',
