@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "dist"
 
 # KV namespace bindings
-[[kv_namespaces]]
+[[env.production.kv_namespaces]]
 binding = "HONGQINGTING_KV"
 preview_id = "845d11a4d216470282cc79237e20acec"
 id = "845d11a4d216470282cc79237e20acec"
