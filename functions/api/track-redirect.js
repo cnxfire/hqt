@@ -92,14 +92,26 @@ async function trackRedirect(url, env) {
     const maxRedirects = 10; // 防止无限重定向
     
     try {
+      console.log('开始跟踪重定向:', url);
       while (redirectCount < maxRedirects) {
+        console.log(`第${redirectCount + 1}次请求:`, finalUrl);
+        
         const response = await fetch(finalUrl, {
-          method: 'GET',
-          redirect: 'manual'
+          method: 'HEAD', // 使用HEAD请求减少数据传输
+          redirect: 'manual',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; RedirectTracker/1.0)'
+          },
+          // 添加超时控制
+          signal: AbortSignal.timeout(10000) // 10秒超时
         });
+        
+        console.log(`响应状态: ${response.status}`);
         
         if (response.status >= 300 && response.status < 400) {
           const location = response.headers.get('Location');
+          console.log('重定向到:', location);
+          
           if (location) {
             // 处理相对URL
             if (location.startsWith('/')) {
@@ -113,15 +125,20 @@ async function trackRedirect(url, env) {
               finalUrl = new URL(location, urlObj.href).href;
             }
             redirectCount++;
+            console.log(`重定向次数: ${redirectCount}, 新地址: ${finalUrl}`);
           } else {
+            console.log('没有Location头部，停止重定向');
             break;
           }
         } else {
+          console.log('非重定向响应，停止跟踪');
           break;
         }
       }
+      console.log('重定向跟踪完成，最终地址:', finalUrl);
     } catch (error) {
-      console.error('跟踪重定向失败:', error);
+      console.error('跟踪重定向失败:', error.message);
+      console.error('错误详情:', error);
       // 如果跟踪失败，返回原始URL
     }
     
@@ -162,14 +179,23 @@ async function trackRedirect(url, env) {
       // 即使KV存储失败，也继续返回结果
     }
     
-    return new Response(JSON.stringify({
+    const responseData = {
       success: true,
       originalUrl: url,
       finalUrl: finalUrl,
       redirectCount: redirectCount,
       expireTime: oneYearFromNow,
-      storedAt: currentTime
-    }), {
+      storedAt: currentTime,
+      environment: env.ENVIRONMENT || 'unknown',
+      debug: {
+        hasKV: !!env.HONGQINGTING_KV,
+        timestamp: Date.now()
+      }
+    };
+    
+    console.log('返回响应数据:', responseData);
+    
+    return new Response(JSON.stringify(responseData), {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
