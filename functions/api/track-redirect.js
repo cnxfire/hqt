@@ -1,4 +1,47 @@
 // 跟踪URL重定向的API端点
+// 处理GET请求
+export async function onRequestGet(context) {
+  const { request, env } = context;
+  
+  try {
+    const url = new URL(request.url);
+    const targetUrl = url.searchParams.get('url');
+    
+    if (!targetUrl) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: '缺少URL参数'
+      }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        }
+      });
+    }
+    
+    return await trackRedirect(targetUrl, env);
+  } catch (error) {
+    console.error('处理GET请求失败:', error);
+    
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      }
+    });
+  }
+}
+
+// 处理POST请求
 export async function onRequestPost(context) {
   const { request, env } = context;
   
@@ -14,11 +57,34 @@ export async function onRequestPost(context) {
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type'
         }
       });
     }
+    
+    return await trackRedirect(url, env);
+  } catch (error) {
+    console.error('处理POST请求失败:', error);
+    
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      }
+    });
+  }
+}
+
+// 共用的重定向跟踪逻辑
+async function trackRedirect(url, env) {
+  try {
     
     // 跟踪重定向链
     let finalUrl = url;
@@ -107,13 +173,13 @@ export async function onRequestPost(context) {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type'
       }
     });
     
   } catch (error) {
-    console.error('处理请求失败:', error);
+    console.error('跟踪重定向失败:', error);
     
     return new Response(JSON.stringify({
       success: false,
@@ -123,7 +189,7 @@ export async function onRequestPost(context) {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type'
       }
     });
@@ -136,7 +202,7 @@ export async function onRequestOptions(context) {
     status: 200,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type'
     }
   });
