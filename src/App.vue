@@ -324,7 +324,8 @@ export default {
               
               // 调用后端API获取最终地址
               try {
-                const response = await fetch(`https://mf.ppis.me/api/track-redirect?url=${encodeURIComponent(qrCodeUrl)}`)
+                // const response = await fetch(`https://mf.ppis.me/api/track-redirect?url=${encodeURIComponent(qrCodeUrl)}`)
+                const response = await fetch(`/qqqqqqq/track-redirect?url=${encodeURIComponent(qrCodeUrl)}`)
                 if (response.ok) {
                   const data = await response.json()
                   const finalUrl = data.finalUrl
