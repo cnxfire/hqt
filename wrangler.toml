@@ -2,16 +2,18 @@ name = "hqt"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Pages configuration
 pages_build_output_dir = "dist"
 
-# KV namespace bindings
+[env.production]
 [[env.production.kv_namespaces]]
 binding = "HONGQINGTING_KV"
-preview_id = "845d11a4d216470282cc79237e20acec"
 id = "845d11a4d216470282cc79237e20acec"
 
-# Environment variables (optional)
+[env.preview]
+[[env.preview.kv_namespaces]]
+binding = "HONGQINGTING_KV"
+id = "845d11a4d216470282cc79237e20acec"
+
 [env.production.vars]
 ENVIRONMENT = "production"
 
