@@ -12,11 +12,10 @@ export default defineConfig({
     port: 3000,
     open: true,
     proxy: {
-      '/qqqqqqq': {
+      '/api': {
         target: 'https://mf.ppis.me',
         changeOrigin: true,
         secure: true,
-        rewrite: (path) => path.replace(/^\/qqqqqqq/, '/api')
       }
     }
   }
