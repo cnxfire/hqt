@@ -5,7 +5,6 @@
         <h1 class="logo">🌸 红蜻蜓</h1>
         <nav class="nav">
           <a href="#home" class="nav-link">首页</a>
-          <a href="#todos" class="nav-link">待办事项</a>
           <a href="#about" class="nav-link">关于</a>
         </nav>
       </div>
@@ -22,82 +21,67 @@
           </div>
           <div v-if="kvStatus" class="kv-status" :class="kvStatus.success ? 'success' : 'error'">
             <p><strong>KV状态:</strong> {{ kvStatus.success ? '✅ 连接正常' : '❌ 连接失败' }}</p>
-            <p v-if="kvStatus.todos_stats"><strong>待办事项:</strong> 总计 {{ kvStatus.todos_stats.total }}，已完成 {{ kvStatus.todos_stats.completed }}</p>
           </div>
         </div>
       </section>
 
-      <!-- 待办事项功能区 -->
-      <section id="todos" class="todos-section">
+      <!-- 时间管理功能区 -->
+      <section id="time-management" class="time-section">
         <div class="container">
-          <h3 class="section-title">📝 待办事项管理</h3>
-          <p class="section-subtitle">基于 Cloudflare KV 存储的实时待办事项系统</p>
+          <h3 class="section-title">⏰ 时间管理</h3>
+          <p class="section-subtitle">选择时间段并上传二维码</p>
           
-          <!-- 添加新待办事项 -->
-          <div class="todo-input-section">
-            <div class="input-group">
-              <input 
-                v-model="newTodoText" 
-                @keyup.enter="addTodo"
-                type="text" 
-                placeholder="输入新的待办事项..."
-                class="todo-input"
-                :disabled="loading"
-              >
-              <button 
-                @click="addTodo" 
-                class="btn btn-add"
-                :disabled="loading || !newTodoText.trim()"
-              >
-                {{ loading ? '添加中...' : '添加' }}
-              </button>
-            </div>
-          </div>
-
-          <!-- 待办事项列表 -->
-          <div class="todos-list">
-            <div v-if="loading && todos.length === 0" class="loading-message">
-              正在加载待办事项...
-            </div>
-            <div v-else-if="todos.length === 0" class="empty-message">
-              暂无待办事项，添加一个开始吧！
-            </div>
-            <div v-else>
-              <div 
-                v-for="todo in todos" 
-                :key="todo.id" 
-                class="todo-item"
-                :class="{ completed: todo.completed }"
-              >
-                <div class="todo-content">
-                  <input 
-                    type="checkbox" 
-                    :checked="todo.completed"
-                    @change="toggleTodo(todo.id, !todo.completed)"
-                    class="todo-checkbox"
-                  >
-                  <span class="todo-text">{{ todo.text }}</span>
-                  <span class="todo-date">{{ formatDate(todo.createdAt) }}</span>
-                </div>
+          <!-- 时间按钮列表 -->
+          <div class="time-buttons-list">
+            <div 
+              v-for="timeOption in timeOptions" 
+              :key="timeOption.id" 
+              class="time-item"
+            >
+              <div class="time-content">
                 <button 
-                  @click="deleteTodo(todo.id)"
-                  class="btn btn-delete"
-                  :disabled="loading"
+                  @click="selectTime(timeOption.id)"
+                  class="btn time-btn"
+                  :class="{ active: selectedTime === timeOption.id }"
                 >
-                  删除
+                  {{ timeOption.label }}
+                </button>
+                
+                <div class="upload-section">
+                  <input 
+                    type="file" 
+                    :id="'file-' + timeOption.id"
+                    @change="handleFileUpload($event, timeOption.id)"
+                    accept="image/*"
+                    class="file-input"
+                    style="display: none;"
+                  >
+                  <button 
+                    @click="triggerFileUpload(timeOption.id)"
+                    class="btn btn-upload"
+                    :disabled="loading"
+                  >
+                    📷 上传二维码
+                  </button>
+                </div>
+                
+                <div class="update-time">
+                  <span class="time-label">最后更新:</span>
+                  <span class="time-value">{{ formatUpdateTime(timeOption.lastUpdate) }}</span>
+                </div>
+              </div>
+              
+              <!-- 显示已上传的二维码 -->
+              <div v-if="timeOption.qrCode" class="qr-preview">
+                <img :src="timeOption.qrCode" alt="二维码" class="qr-image">
+                <button 
+                  @click="removeQRCode(timeOption.id)"
+                  class="btn btn-remove"
+                >
+                  ❌ 删除
                 </button>
               </div>
             </div>
-          </div>
-
-          <!-- 操作按钮 -->
-          <div class="todo-actions">
-            <button @click="loadTodos" class="btn btn-secondary" :disabled="loading">
-              {{ loading ? '刷新中...' : '刷新列表' }}
-            </button>
-            <button @click="clearAllTodos" class="btn btn-danger" :disabled="loading || todos.length === 0">
-              清空所有
-            </button>
           </div>
         </div>
       </section>
@@ -139,14 +123,33 @@ export default {
   name: 'App',
   data() {
     return {
-      todos: [],
-      newTodoText: '',
       loading: false,
-      kvStatus: null
+      kvStatus: null,
+      selectedTime: null,
+      timeOptions: [
+        {
+          id: '2h',
+          label: '2小时',
+          qrCode: null,
+          lastUpdate: null
+        },
+        {
+          id: '4h',
+          label: '4小时',
+          qrCode: null,
+          lastUpdate: null
+        },
+        {
+          id: '6h',
+          label: '6小时',
+          qrCode: null,
+          lastUpdate: null
+        }
+      ]
     }
   },
   mounted() {
-    this.loadTodos()
+    this.loadTimeData()
   },
   methods: {
     async checkKVStatus() {
@@ -174,198 +177,120 @@ export default {
       }
     },
     
-    async loadTodos() {
-      this.loading = true
-      try {
-        const response = await fetch('/api/todos')
-        const data = await response.json()
-        
-        if (data.success) {
-          this.todos = data.data || []
-        } else {
-          console.error('加载待办事项失败:', data.error)
-          // 在开发环境下，如果API不可用，使用本地存储
-          if (window.location.hostname === 'localhost') {
-            this.loadLocalTodos()
+    loadTimeData() {
+      // 从本地存储加载时间数据
+      const stored = localStorage.getItem('hongqingting_time_data')
+      if (stored) {
+        const timeData = JSON.parse(stored)
+        this.timeOptions.forEach(option => {
+          const savedData = timeData[option.id]
+          if (savedData) {
+            option.qrCode = savedData.qrCode
+            option.lastUpdate = savedData.lastUpdate
           }
-        }
-      } catch (error) {
-        console.error('加载待办事项失败:', error)
-        // 在开发环境下，如果API不可用，使用本地存储
-        if (window.location.hostname === 'localhost') {
-          this.loadLocalTodos()
-        }
-      } finally {
-        this.loading = false
-      }
-    },
-    
-    async addTodo() {
-      if (!this.newTodoText.trim()) return
-      
-      this.loading = true
-      try {
-        const response = await fetch('/api/todos', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            text: this.newTodoText.trim()
-          })
         })
-        
-        const data = await response.json()
-        
-        if (data.success) {
-          this.todos.push(data.data)
-          this.newTodoText = ''
-        } else {
-          alert('添加失败: ' + data.error)
-          // 开发环境下使用本地存储
-          if (window.location.hostname === 'localhost') {
-            this.addLocalTodo()
-          }
-        }
-      } catch (error) {
-        console.error('添加待办事项失败:', error)
-        // 开发环境下使用本地存储
-        if (window.location.hostname === 'localhost') {
-          this.addLocalTodo()
-        }
-      } finally {
-        this.loading = false
       }
     },
     
-    async toggleTodo(id, completed) {
-      this.loading = true
-      try {
-        const response = await fetch('/api/todos', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            id,
-            completed
-          })
-        })
-        
-        const data = await response.json()
-        
-        if (data.success) {
-          const todoIndex = this.todos.findIndex(todo => todo.id === id)
-          if (todoIndex !== -1) {
-            this.todos[todoIndex] = data.data
-          }
-        } else {
-          alert('更新失败: ' + data.error)
+    saveTimeData() {
+      // 保存时间数据到本地存储
+      const timeData = {}
+      this.timeOptions.forEach(option => {
+        timeData[option.id] = {
+          qrCode: option.qrCode,
+          lastUpdate: option.lastUpdate
         }
-      } catch (error) {
-        console.error('更新待办事项失败:', error)
-        // 开发环境下使用本地存储
-        if (window.location.hostname === 'localhost') {
-          this.toggleLocalTodo(id, completed)
-        }
-      } finally {
-        this.loading = false
-      }
-    },
-    
-    async deleteTodo(id) {
-      if (!confirm('确定要删除这个待办事项吗？')) return
-      
-      this.loading = true
-      try {
-        const response = await fetch(`/api/todos?id=${id}`, {
-          method: 'DELETE'
-        })
-        
-        const data = await response.json()
-        
-        if (data.success) {
-          this.todos = this.todos.filter(todo => todo.id !== id)
-        } else {
-          alert('删除失败: ' + data.error)
-        }
-      } catch (error) {
-        console.error('删除待办事项失败:', error)
-        // 开发环境下使用本地存储
-        if (window.location.hostname === 'localhost') {
-          this.deleteLocalTodo(id)
-        }
-      } finally {
-        this.loading = false
-      }
-    },
-    
-    async clearAllTodos() {
-      if (!confirm('确定要清空所有待办事项吗？此操作不可恢复！')) return
-      
-      this.loading = true
-      try {
-        const response = await fetch('/api/status', {
-          method: 'DELETE'
-        })
-        
-        const data = await response.json()
-        
-        if (data.success) {
-          this.todos = []
-        } else {
-          alert('清空失败: ' + data.error)
-        }
-      } catch (error) {
-        console.error('清空待办事项失败:', error)
-      } finally {
-        this.loading = false
-      }
-    },
-    
-    // 本地存储方法（开发环境备用）
-    loadLocalTodos() {
-      const stored = localStorage.getItem('hongqingting_todos')
-      this.todos = stored ? JSON.parse(stored) : []
-    },
-    
-    saveLocalTodos() {
-      localStorage.setItem('hongqingting_todos', JSON.stringify(this.todos))
-    },
-    
-    addLocalTodo() {
-      const newTodo = {
-        id: Date.now().toString(),
-        text: this.newTodoText.trim(),
-        completed: false,
-        createdAt: new Date().toISOString()
-      }
-      this.todos.push(newTodo)
-      this.newTodoText = ''
-      this.saveLocalTodos()
-    },
-    
-    toggleLocalTodo(id, completed) {
-      const todoIndex = this.todos.findIndex(todo => todo.id === id)
-      if (todoIndex !== -1) {
-        this.todos[todoIndex].completed = completed
-        this.saveLocalTodos()
-      }
-    },
-    
-    deleteLocalTodo(id) {
-      this.todos = this.todos.filter(todo => todo.id !== id)
-      this.saveLocalTodos()
-    },
-    
-    formatDate(dateString) {
-      const date = new Date(dateString)
-      return date.toLocaleDateString('zh-CN', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
       })
+      localStorage.setItem('hongqingting_time_data', JSON.stringify(timeData))
+    },
+    
+    selectTime(timeId) {
+      this.selectedTime = timeId
+    },
+    
+    triggerFileUpload(timeId) {
+      const fileInput = document.getElementById('file-' + timeId)
+      fileInput.click()
+    },
+    
+    handleFileUpload(event, timeId) {
+      const file = event.target.files[0]
+      if (!file) return
+      
+      // 检查文件类型
+      if (!file.type.startsWith('image/')) {
+        alert('请选择图片文件')
+        return
+      }
+      
+      // 检查文件大小（限制为5MB）
+      if (file.size > 5 * 1024 * 1024) {
+        alert('文件大小不能超过5MB')
+        return
+      }
+      
+      this.loading = true
+      
+      // 使用FileReader读取文件
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const timeOption = this.timeOptions.find(option => option.id === timeId)
+        if (timeOption) {
+          timeOption.qrCode = e.target.result
+          timeOption.lastUpdate = new Date().toISOString()
+          this.saveTimeData()
+        }
+        this.loading = false
+      }
+      
+      reader.onerror = () => {
+        alert('文件读取失败')
+        this.loading = false
+      }
+      
+      reader.readAsDataURL(file)
+      
+      // 清空input值，允许重复选择同一文件
+      event.target.value = ''
+    },
+    
+    removeQRCode(timeId) {
+      if (!confirm('确定要删除这个二维码吗？')) return
+      
+      const timeOption = this.timeOptions.find(option => option.id === timeId)
+      if (timeOption) {
+        timeOption.qrCode = null
+        timeOption.lastUpdate = new Date().toISOString()
+        this.saveTimeData()
+      }
+    },
+    
+    formatUpdateTime(dateString) {
+      if (!dateString) return '未更新'
+      
+      const date = new Date(dateString)
+      const now = new Date()
+      const diffMs = now - date
+      const diffMins = Math.floor(diffMs / 60000)
+      const diffHours = Math.floor(diffMins / 60)
+      const diffDays = Math.floor(diffHours / 24)
+      
+      if (diffMins < 1) {
+        return '刚刚'
+      } else if (diffMins < 60) {
+        return `${diffMins}分钟前`
+      } else if (diffHours < 24) {
+        return `${diffHours}小时前`
+      } else if (diffDays < 7) {
+        return `${diffDays}天前`
+      } else {
+        return date.toLocaleDateString('zh-CN', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      }
     },
     
     learnMore() {
@@ -554,8 +479,8 @@ export default {
   color: #dc2626;
 }
 
-/* 待办事项区域 */
-.todos-section {
+/* 时间管理区域 */
+.time-section {
   padding: 4rem 0;
   background: #f8f9fa;
 }
@@ -567,165 +492,148 @@ export default {
   font-size: 1.1rem;
 }
 
-/* 输入区域 */
-.todo-input-section {
-  margin-bottom: 2rem;
-}
-
-.input-group {
-  display: flex;
-  gap: 1rem;
-  max-width: 600px;
+/* 时间按钮列表 */
+.time-buttons-list {
+  max-width: 900px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
 }
 
-.todo-input {
-  flex: 1;
-  padding: 12px 16px;
-  border: 2px solid #e1e5e9;
-  border-radius: 8px;
-  font-size: 1rem;
-  transition: border-color 0.3s;
+.time-item {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transition: all 0.3s;
 }
 
-.todo-input:focus {
-  outline: none;
-  border-color: #667eea;
+.time-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
 }
 
-.todo-input:disabled {
-  background: #f5f5f5;
-  cursor: not-allowed;
+.time-content {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  flex-wrap: wrap;
 }
 
-.btn-add {
+.time-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 16px 32px;
+  border: none;
+  border-radius: 25px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  min-width: 120px;
+}
+
+.time-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.time-btn.active {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  box-shadow: 0 6px 16px rgba(245, 87, 108, 0.4);
+}
+
+.upload-section {
+  display: flex;
+  align-items: center;
+}
+
+.btn-upload {
   background: #10b981;
   color: white;
-  padding: 12px 24px;
+  padding: 12px 20px;
   border: none;
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.btn-add:hover:not(:disabled) {
+.btn-upload:hover:not(:disabled) {
   background: #059669;
   transform: translateY(-1px);
 }
 
-.btn-add:disabled {
+.btn-upload:disabled {
   background: #9ca3af;
   cursor: not-allowed;
   transform: none;
 }
 
-/* 待办事项列表 */
-.todos-list {
-  max-width: 800px;
-  margin: 0 auto 2rem;
-}
-
-.loading-message,
-.empty-message {
-  text-align: center;
-  padding: 3rem;
-  color: #666;
-  font-size: 1.1rem;
-}
-
-.todo-item {
+.update-time {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: white;
-  padding: 1rem 1.5rem;
-  margin-bottom: 0.5rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  transition: all 0.3s;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-left: auto;
 }
 
-.todo-item:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+.time-label {
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 0.25rem;
 }
 
-.todo-item.completed {
-  opacity: 0.7;
+.time-value {
+  font-size: 0.9rem;
+  color: #333;
+  font-weight: 500;
 }
 
-.todo-content {
+/* 二维码预览 */
+.qr-preview {
+  margin-top: 1.5rem;
   display: flex;
   align-items: center;
   gap: 1rem;
-  flex: 1;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px dashed #e1e5e9;
 }
 
-.todo-checkbox {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
+.qr-image {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid #e1e5e9;
 }
 
-.todo-text {
-  flex: 1;
-  font-size: 1rem;
-  color: #333;
-}
-
-.todo-item.completed .todo-text {
-  text-decoration: line-through;
-  color: #999;
-}
-
-.todo-date {
-  font-size: 0.85rem;
-  color: #999;
-  margin-left: auto;
-  margin-right: 1rem;
-}
-
-.btn-delete {
+.btn-remove {
   background: #ef4444;
   color: white;
-  padding: 6px 12px;
+  padding: 8px 16px;
   border: none;
   border-radius: 6px;
   font-size: 0.9rem;
   cursor: pointer;
   transition: all 0.3s;
-}
-
-.btn-delete:hover:not(:disabled) {
-  background: #dc2626;
-}
-
-.btn-delete:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-}
-
-/* 操作按钮 */
-.todo-actions {
   display: flex;
-  gap: 1rem;
-  justify-content: center;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.btn-danger {
-  background: #ef4444;
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
+.btn-remove:hover {
   background: #dc2626;
+  transform: translateY(-1px);
 }
 
-.btn-danger:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
+.file-input {
+  display: none;
 }
 
 @media (max-width: 768px) {
@@ -747,24 +655,31 @@ export default {
     grid-template-columns: 1fr;
   }
   
-  .input-group {
-    flex-direction: column;
-  }
-  
-  .todo-item {
+  .time-content {
     flex-direction: column;
     align-items: stretch;
     gap: 1rem;
   }
   
-  .todo-content {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
+  .time-btn {
+    width: 100%;
+    text-align: center;
   }
   
-  .todo-date {
-    margin: 0;
+  .update-time {
+    margin-left: 0;
+    align-items: center;
+    text-align: center;
+  }
+  
+  .qr-preview {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .qr-image {
+    width: 100px;
+    height: 100px;
   }
 }
 </style>
