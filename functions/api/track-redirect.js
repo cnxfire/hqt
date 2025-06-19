@@ -59,11 +59,50 @@ export async function onRequestPost(context) {
       // 如果跟踪失败，返回原始URL
     }
     
+    // 将真实地址按不同过期时间存储到KV
+    const currentTime = new Date().toISOString();
+    const oneYearFromNow = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    
+    const urlData = {
+      originalUrl: url,
+      finalUrl: finalUrl,
+      redirectCount: redirectCount,
+      timestamp: currentTime,
+      expireTime: oneYearFromNow
+    };
+    
+    try {
+      // 存储2小时过期的数据
+      const key2h = `real_url_2h_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await env.HONGQINGTING_KV.put(key2h, JSON.stringify(urlData), {
+        expirationTtl: 2 * 60 * 60 // 2小时
+      });
+      
+      // 存储4小时过期的数据
+      const key4h = `real_url_4h_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await env.HONGQINGTING_KV.put(key4h, JSON.stringify(urlData), {
+        expirationTtl: 4 * 60 * 60 // 4小时
+      });
+      
+      // 存储6小时过期的数据
+      const key6h = `real_url_6h_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await env.HONGQINGTING_KV.put(key6h, JSON.stringify(urlData), {
+        expirationTtl: 6 * 60 * 60 // 6小时
+      });
+      
+      console.log('真实地址已存储到KV:', { key2h, key4h, key6h });
+    } catch (kvError) {
+      console.error('存储到KV失败:', kvError);
+      // 即使KV存储失败，也继续返回结果
+    }
+    
     return new Response(JSON.stringify({
       success: true,
       originalUrl: url,
       finalUrl: finalUrl,
-      redirectCount: redirectCount
+      redirectCount: redirectCount,
+      expireTime: oneYearFromNow,
+      storedAt: currentTime
     }), {
       headers: {
         'Content-Type': 'application/json',

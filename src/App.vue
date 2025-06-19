@@ -75,6 +75,30 @@
                 </div>
               </div>
               
+              <!-- 显示从KV读取的真实地址信息 -->
+              <div v-if="timeOption.realUrlInfo" class="real-url-info">
+                <h4 class="real-url-title">📍 真实地址信息</h4>
+                <div class="real-url-details">
+                  <div class="url-item">
+                    <span class="url-label">🅰️ 原始地址:</span>
+                    <a :href="timeOption.realUrlInfo.originalUrl" target="_blank" class="url-link">
+                      {{ timeOption.realUrlInfo.originalUrl }}
+                    </a>
+                  </div>
+                  <div class="url-item">
+                    <span class="url-label">🅱️ 真实地址:</span>
+                    <a :href="timeOption.realUrlInfo.finalUrl" target="_blank" class="url-link">
+                      {{ timeOption.realUrlInfo.finalUrl }}
+                    </a>
+                  </div>
+                  <div class="url-meta">
+                    <span class="meta-item">🔄 重定向次数: {{ timeOption.realUrlInfo.redirectCount }}</span>
+                    <span class="meta-item">⏰ 存储时间: {{ formatUpdateTime(timeOption.realUrlInfo.timestamp) }}</span>
+                    <span class="meta-item">⏳ 过期时间: {{ formatUpdateTime(timeOption.realUrlInfo.expireTime) }}</span>
+                  </div>
+                </div>
+              </div>
+              
               <!-- 显示已上传的二维码 -->
               <div v-if="timeOption.qrCode" class="qr-preview">
                 <img :src="timeOption.qrCode" alt="二维码" class="qr-image">
@@ -136,21 +160,24 @@ export default {
           label: '2小时',
           qrCode: null,
           lastUpdate: null,
-          savedUrl: null
+          savedUrl: null,
+          realUrlInfo: null
         },
         {
           id: '4h',
           label: '4小时',
           qrCode: null,
           lastUpdate: null,
-          savedUrl: null
+          savedUrl: null,
+          realUrlInfo: null
         },
         {
           id: '6h',
           label: '6小时',
           qrCode: null,
           lastUpdate: null,
-          savedUrl: null
+          savedUrl: null,
+          realUrlInfo: null
         }
       ]
     }
@@ -198,6 +225,9 @@ export default {
           }
         })
       }
+      
+      // 自动读取KV中存储的真实地址数据
+      await this.loadRealUrlsFromKV()
       
       // 尝试从KV加载URL数据
       for (const option of this.timeOptions) {
@@ -476,7 +506,7 @@ export default {
     async getFinalRedirectUrl(initialUrl) {
       try {
         // 使用指定的API地址进行重定向追踪
-        const apiUrl = `https://mf.ppis.me/api/track-redirect?url=${encodeURIComponent(initialUrl)}`
+        const apiUrl = `/api/track-redirect?url=${encodeURIComponent(initialUrl)}`
         const response = await fetch(apiUrl, {
           method: 'GET',
           mode: 'cors',
@@ -616,6 +646,58 @@ export default {
         localStorage.setItem(`hongqingting_url_${timeId}`, url)
         throw error
       }
+    },
+    
+    // 从KV读取存储的真实地址数据
+    async loadRealUrlsFromKV() {
+      console.log('🔄 开始从KV读取真实地址数据...')
+      
+      try {
+        // 调用新的API获取所有时间段的真实地址数据
+        const response = await fetch('/api/get-real-urls')
+        
+        if (response.ok) {
+          const result = await response.json()
+          
+          if (result.success && result.data) {
+            // 遍历每个时间段的数据
+            for (const timeOption of this.timeOptions) {
+              const realUrlData = result.data[timeOption.id]
+              
+              if (realUrlData && realUrlData.finalUrl) {
+                console.log(`📍 找到 ${timeOption.id} 的真实地址:`, realUrlData.finalUrl)
+                console.log(`   原始地址: ${realUrlData.originalUrl}`)
+                console.log(`   重定向次数: ${realUrlData.redirectCount}`)
+                console.log(`   存储时间: ${realUrlData.timestamp}`)
+                console.log(`   过期时间: ${realUrlData.expireTime}`)
+                
+                // 如果当前没有保存的URL，则使用从KV读取的真实地址
+                if (!timeOption.savedUrl) {
+                  timeOption.savedUrl = realUrlData.finalUrl
+                  timeOption.lastUpdate = realUrlData.timestamp
+                }
+                
+                // 在时间按钮上显示真实地址信息
+                timeOption.realUrlInfo = {
+                  originalUrl: realUrlData.originalUrl,
+                  finalUrl: realUrlData.finalUrl,
+                  redirectCount: realUrlData.redirectCount,
+                  timestamp: realUrlData.timestamp,
+                  expireTime: realUrlData.expireTime
+                }
+              } else {
+                console.log(`⚠️ ${timeOption.id} 时间段暂无真实地址数据`)
+              }
+            }
+          }
+        } else {
+          console.warn('获取真实地址数据API响应失败:', response.status)
+        }
+      } catch (error) {
+        console.error('读取真实地址数据失败:', error)
+      }
+      
+      console.log('✅ KV真实地址数据读取完成')
     },
     
     // 从KV获取URL
@@ -948,6 +1030,78 @@ export default {
   font-weight: 500;
 }
 
+/* 真实地址信息显示 */
+.real-url-info {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 12px;
+  border: 1px solid #0ea5e9;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.1);
+}
+
+.real-url-title {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #0c4a6e;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.real-url-details {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.url-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.url-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.url-link {
+  color: #0ea5e9;
+  text-decoration: none;
+  word-break: break-all;
+  padding: 0.5rem;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.3s;
+  font-size: 0.9rem;
+}
+
+.url-link:hover {
+  background: #f8fafc;
+  border-color: #0ea5e9;
+  transform: translateY(-1px);
+}
+
+.url-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.meta-item {
+  font-size: 0.85rem;
+  color: #6b7280;
+  background: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  border: 1px solid #e5e7eb;
+}
+
 /* 二维码预览 */
 .qr-preview {
   margin-top: 1.5rem;
@@ -1035,6 +1189,19 @@ export default {
   .qr-image {
     width: 100px;
     height: 100px;
+  }
+  
+  .real-url-info {
+    padding: 1rem;
+  }
+  
+  .url-meta {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .meta-item {
+    text-align: center;
   }
 }
 </style>

@@ -10,6 +10,13 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    open: true
+    open: true,
+    proxy: {
+      '/api': {
+        target: 'https://mf.ppis.me',
+        changeOrigin: true,
+        secure: true
+      }
+    }
   }
 })
