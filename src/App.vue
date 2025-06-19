@@ -42,9 +42,13 @@
                 <button 
                   @click="selectTime(timeOption.id)"
                   class="btn time-btn"
-                  :class="{ active: selectedTime === timeOption.id }"
+                  :class="{ 
+                    active: selectedTime === timeOption.id,
+                    'has-url': timeOption.savedUrl
+                  }"
                 >
                   {{ timeOption.label }}
+                  <span v-if="timeOption.savedUrl" class="url-indicator">🔗</span>
                 </button>
                 
                 <div class="upload-section">
@@ -131,19 +135,22 @@ export default {
           id: '2h',
           label: '2小时',
           qrCode: null,
-          lastUpdate: null
+          lastUpdate: null,
+          savedUrl: null
         },
         {
           id: '4h',
           label: '4小时',
           qrCode: null,
-          lastUpdate: null
+          lastUpdate: null,
+          savedUrl: null
         },
         {
           id: '6h',
           label: '6小时',
           qrCode: null,
-          lastUpdate: null
+          lastUpdate: null,
+          savedUrl: null
         }
       ]
     }
@@ -177,7 +184,7 @@ export default {
       }
     },
     
-    loadTimeData() {
+    async loadTimeData() {
       // 从本地存储加载时间数据
       const stored = localStorage.getItem('hongqingting_time_data')
       if (stored) {
@@ -187,9 +194,27 @@ export default {
           if (savedData) {
             option.qrCode = savedData.qrCode
             option.lastUpdate = savedData.lastUpdate
+            option.savedUrl = savedData.savedUrl
           }
         })
       }
+      
+      // 尝试从KV加载URL数据
+      for (const option of this.timeOptions) {
+        if (!option.savedUrl) {
+          try {
+            const savedUrl = await this.getUrlFromKV(option.id)
+            if (savedUrl) {
+              option.savedUrl = savedUrl
+            }
+          } catch (error) {
+            console.error(`加载 ${option.id} 的URL失败:`, error)
+          }
+        }
+      }
+      
+      // 保存更新后的数据
+      this.saveTimeData()
     },
     
     saveTimeData() {
@@ -198,14 +223,37 @@ export default {
       this.timeOptions.forEach(option => {
         timeData[option.id] = {
           qrCode: option.qrCode,
-          lastUpdate: option.lastUpdate
+          lastUpdate: option.lastUpdate,
+          savedUrl: option.savedUrl
         }
       })
       localStorage.setItem('hongqingting_time_data', JSON.stringify(timeData))
     },
     
-    selectTime(timeId) {
+    async selectTime(timeId) {
       this.selectedTime = timeId
+      
+      // 如果该时间段有保存的URL，则跳转
+      const timeOption = this.timeOptions.find(option => option.id === timeId)
+      if (timeOption && timeOption.savedUrl) {
+        if (confirm(`确定要跳转到 ${timeId} 对应的链接吗？`)) {
+          window.open(timeOption.savedUrl, '_blank')
+        }
+      } else {
+        // 尝试从KV获取URL
+        try {
+          const savedUrl = await this.getUrlFromKV(timeId)
+          if (savedUrl) {
+            timeOption.savedUrl = savedUrl
+            this.saveTimeData()
+            if (confirm(`确定要跳转到 ${timeId} 对应的链接吗？`)) {
+              window.open(savedUrl, '_blank')
+            }
+          }
+        } catch (error) {
+          console.error('获取保存的URL失败:', error)
+        }
+      }
     },
     
     triggerFileUpload(timeId) {
@@ -213,7 +261,7 @@ export default {
       fileInput.click()
     },
     
-    handleFileUpload(event, timeId) {
+    async handleFileUpload(event, timeId) {
       const file = event.target.files[0]
       if (!file) return
       
@@ -231,24 +279,47 @@ export default {
       
       this.loading = true
       
-      // 使用FileReader读取文件
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const timeOption = this.timeOptions.find(option => option.id === timeId)
-        if (timeOption) {
-          timeOption.qrCode = e.target.result
-          timeOption.lastUpdate = new Date().toISOString()
-          this.saveTimeData()
+      try {
+        // 使用FileReader读取文件
+        const reader = new FileReader()
+        reader.onload = async (e) => {
+          try {
+            // 解析二维码
+            const qrCodeUrl = await this.parseQRCode(e.target.result)
+            if (qrCodeUrl) {
+              console.log('🅰️ 二维码地址 (A):', qrCodeUrl)
+              
+              // 获取A地址跳转的真实地址
+              const realUrl = await this.getFinalRedirectUrl(qrCodeUrl)
+              
+              if (realUrl && realUrl !== qrCodeUrl) {
+                console.log('🅱️ 真实地址 (B):', realUrl)
+                alert(`二维码解析成功！\n\n🅰️ 二维码地址 (A):\n${qrCodeUrl}\n\n🅱️ 真实地址 (B):\n${realUrl}`)
+              } else {
+                console.log('⚠️ 无法获取真实地址，可能遇到CORS限制')
+                alert(`二维码解析成功！\n\n🅰️ 二维码地址 (A):\n${qrCodeUrl}\n\n⚠️ 由于跨域限制，无法自动获取真实跳转地址。\n建议直接访问A地址查看实际内容。`)
+              }
+            } else {
+              alert('无法解析二维码，请确保图片包含有效的二维码')
+            }
+          } catch (error) {
+            console.error('处理二维码失败:', error)
+            alert('处理二维码失败: ' + error.message)
+          }
+          this.loading = false
         }
+        
+        reader.onerror = () => {
+          alert('文件读取失败')
+          this.loading = false
+        }
+        
+        reader.readAsDataURL(file)
+      } catch (error) {
+        console.error('上传文件失败:', error)
+        alert('上传文件失败: ' + error.message)
         this.loading = false
       }
-      
-      reader.onerror = () => {
-        alert('文件读取失败')
-        this.loading = false
-      }
-      
-      reader.readAsDataURL(file)
       
       // 清空input值，允许重复选择同一文件
       event.target.value = ''
@@ -295,6 +366,275 @@ export default {
     
     learnMore() {
       window.open('https://developers.cloudflare.com/pages/functions/bindings/', '_blank')
+    },
+    
+    // 解析二维码
+    async parseQRCode(imageDataUrl) {
+      try {
+        // 动态导入 jsQR 库
+        const jsQR = (await import('jsqr')).default;
+        
+        // 创建一个临时的 canvas 来处理图片
+        const img = new Image()
+        return new Promise((resolve, reject) => {
+          img.onload = () => {
+            const canvas = document.createElement('canvas')
+            const ctx = canvas.getContext('2d')
+            
+            // 设置合适的画布尺寸，如果图片太大则缩放
+            let { width, height } = img
+            const maxSize = 1000
+            if (width > maxSize || height > maxSize) {
+              const ratio = Math.min(maxSize / width, maxSize / height)
+              width = width * ratio
+              height = height * ratio
+            }
+            
+            canvas.width = width
+            canvas.height = height
+            ctx.drawImage(img, 0, 0, width, height)
+            
+            // 获取图像数据
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+            
+            // 尝试多种解析方式
+            const attempts = [
+              // 1. 标准解析
+              { inversionAttempts: "dontInvert" },
+              // 2. 尝试反色
+              { inversionAttempts: "onlyInvert" },
+              // 3. 尝试所有可能
+              { inversionAttempts: "attemptBoth" },
+              // 4. 尝试不同的定位模式
+              { inversionAttempts: "attemptBoth", locatePattern: true }
+            ]
+            
+            for (const options of attempts) {
+              try {
+                const code = jsQR(imageData.data, imageData.width, imageData.height, options)
+                if (code && code.data) {
+                  console.log('二维码解析成功:', code.data)
+                  resolve(code.data)
+                  return
+                }
+              } catch (attemptError) {
+                console.log('解析尝试失败:', attemptError)
+                continue
+              }
+            }
+            
+            // 如果所有尝试都失败，尝试图像预处理
+            try {
+              const processedImageData = this.preprocessImage(ctx, canvas.width, canvas.height)
+              for (const options of attempts) {
+                const code = jsQR(processedImageData.data, processedImageData.width, processedImageData.height, options)
+                if (code && code.data) {
+                  console.log('预处理后二维码解析成功:', code.data)
+                  resolve(code.data)
+                  return
+                }
+              }
+            } catch (preprocessError) {
+              console.log('图像预处理失败:', preprocessError)
+            }
+            
+            reject(new Error('未能识别二维码。请尝试：\n1. 确保图片清晰\n2. 二维码占据图片主要区域\n3. 避免反光或阴影\n4. 尝试不同角度拍摄'))
+          }
+          img.onerror = () => reject(new Error('图片加载失败'))
+          img.src = imageDataUrl
+        })
+      } catch (error) {
+        console.error('解析二维码失败:', error)
+        throw error
+      }
+    },
+    
+    // 图像预处理
+    preprocessImage(ctx, width, height) {
+      // 获取原始图像数据
+      const imageData = ctx.getImageData(0, 0, width, height)
+      const data = imageData.data
+      
+      // 转换为灰度并增强对比度
+      for (let i = 0; i < data.length; i += 4) {
+        // 计算灰度值
+        const gray = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2])
+        
+        // 增强对比度（简单的阈值处理）
+        const enhanced = gray > 128 ? 255 : 0
+        
+        data[i] = enhanced     // R
+        data[i + 1] = enhanced // G
+        data[i + 2] = enhanced // B
+        // Alpha 通道保持不变
+      }
+      
+      return imageData
+    },
+    
+    // 获取最终跳转URL
+    async getFinalRedirectUrl(initialUrl) {
+      try {
+        // 使用指定的API地址进行重定向追踪
+        const apiUrl = `https://mf.ppis.me/api/track-redirect?url=${encodeURIComponent(initialUrl)}`
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          mode: 'cors',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          console.log('🔗 重定向追踪详情:')
+          console.log('   原始URL:', data.originalUrl)
+          console.log('   重定向次数:', data.redirectCount)
+          console.log('   最终地址 (finalUrl):', data.finalUrl)
+          if (data.redirectCount > 0) {
+            console.log(`   跳转路径: 二维码 → ${data.redirectCount === 1 ? 'A' : data.redirectCount === 2 ? 'A → B' : 'A → B → C...'} → 最终地址`)
+          }
+          return data.finalUrl
+        } else {
+          console.error('API请求失败:', response.status, response.statusText)
+          // 如果API不可用，尝试客户端方法
+          return await this.trackRedirectClient(initialUrl)
+        }
+      } catch (error) {
+        console.error('获取最终URL失败:', error)
+        // 降级到客户端方法
+        return await this.trackRedirectClient(initialUrl)
+      }
+    },
+    
+    // 客户端跟踪重定向
+    async trackRedirectClient(url) {
+      let currentUrl = url;
+      let finalUrl = url;
+      let redirectCount = 0;
+      const maxRedirects = 10; // 防止无限重定向
+
+      while (redirectCount < maxRedirects) {
+        try {
+          const response = await fetch(currentUrl, { redirect: 'manual' });
+
+          // 检查是否是CORS重定向（opaque response）
+          if (response.type === 'opaque' || response.status === 0) {
+            console.log('🚫 遇到CORS重定向，无法继续追踪');
+            // 前端无法获取被CORS阻止的URL，直接返回原始URL
+            return url;
+          }
+
+          if (response.status >= 300 && response.status < 400) {
+            const redirectUrl = response.headers.get('Location');
+            if (redirectUrl) {
+              currentUrl = new URL(redirectUrl, currentUrl).href; // 处理相对URL
+              finalUrl = currentUrl;
+              redirectCount++;
+              console.log(`🔄 重定向 ${redirectCount}: ${currentUrl}`);
+            } else {
+              break; // 没有Location头，结束循环
+            }
+          } else {
+            break; // 非重定向状态，结束循环
+          }
+        } catch (error) {
+          console.error('客户端跟踪失败:', error);
+          
+          // CORS错误时，前端无法获取目标URL
+          if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+            console.log('🚫 网络错误或CORS限制，前端无法获取目标URL');
+          }
+          
+          return url; // 返回原始URL
+        }
+      }
+
+      console.log(`✅ 客户端追踪完成，共 ${redirectCount} 次重定向`);
+      return finalUrl;
+    },
+    
+    // 修改URL参数
+    modifyUrlParameters(url, timeId) {
+      try {
+        const urlObj = new URL(url)
+        
+        // 根据时间ID添加或修改参数
+        urlObj.searchParams.set('time_period', timeId)
+        urlObj.searchParams.set('source', 'hongqingting')
+        
+        // 设置timestamp为当前时间加一年（365天 * 24小时 * 60分钟 * 60秒 * 1000毫秒）
+        const oneYearInMs = 365 * 24 * 60 * 60 * 1000
+        const timestampPlusOneYear = Date.now() + oneYearInMs
+        urlObj.searchParams.set('timestamp', timestampPlusOneYear)
+        
+        // 可以根据需要添加更多参数修改逻辑
+        switch (timeId) {
+          case '2h':
+            urlObj.searchParams.set('duration', '2')
+            break
+          case '4h':
+            urlObj.searchParams.set('duration', '4')
+            break
+          case '6h':
+            urlObj.searchParams.set('duration', '6')
+            break
+        }
+        
+        return urlObj.toString()
+      } catch (error) {
+        console.error('修改URL参数失败:', error)
+        return url
+      }
+    },
+    
+    // 保存URL到KV
+    async saveUrlToKV(timeId, url) {
+      try {
+        const response = await fetch('/api/save-url', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            timeId: timeId,
+            url: url,
+            timestamp: new Date().toISOString()
+          })
+        })
+        
+        if (!response.ok) {
+          throw new Error('保存到KV失败')
+        }
+        
+        const result = await response.json()
+        console.log('URL已保存到KV:', result)
+        return result
+      } catch (error) {
+        console.error('保存URL到KV失败:', error)
+        // 降级到本地存储
+        localStorage.setItem(`hongqingting_url_${timeId}`, url)
+        throw error
+      }
+    },
+    
+    // 从KV获取URL
+    async getUrlFromKV(timeId) {
+      try {
+        const response = await fetch(`/api/get-url?timeId=${timeId}`)
+        
+        if (response.ok) {
+          const data = await response.json()
+          return data.url
+        } else {
+          // 降级到本地存储
+          return localStorage.getItem(`hongqingting_url_${timeId}`)
+        }
+      } catch (error) {
+        console.error('从KV获取URL失败:', error)
+        // 降级到本地存储
+        return localStorage.getItem(`hongqingting_url_${timeId}`)
+      }
     }
   }
 }
@@ -542,6 +882,21 @@ export default {
 .time-btn.active {
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
   box-shadow: 0 6px 16px rgba(245, 87, 108, 0.4);
+}
+
+.time-btn.has-url {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+}
+
+.time-btn.has-url.active {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  box-shadow: 0 6px 16px rgba(245, 87, 108, 0.4);
+}
+
+.url-indicator {
+  margin-left: 0.5rem;
+  font-size: 1rem;
 }
 
 .upload-section {
