@@ -319,15 +319,24 @@ export default {
             if (qrCodeUrl) {
               console.log('🅰️ 二维码地址 (A):', qrCodeUrl)
               
-              // 获取A地址跳转的真实地址
-              const realUrl = await this.getFinalRedirectUrl(qrCodeUrl)
+              // 显示二维码解析结果
+              console.log('🅰️ 二维码地址:', qrCodeUrl)
               
-              if (realUrl && realUrl !== qrCodeUrl) {
-                console.log('🅱️ 真实地址 (B):', realUrl)
-                alert(`二维码解析成功！\n\n🅰️ 二维码地址 (A):\n${qrCodeUrl}\n\n🅱️ 真实地址 (B):\n${realUrl}`)
-              } else {
-                console.log('⚠️ 无法获取真实地址，可能遇到CORS限制')
-                alert(`二维码解析成功！\n\n🅰️ 二维码地址 (A):\n${qrCodeUrl}\n\n⚠️ 由于跨域限制，无法自动获取真实跳转地址。\n建议直接访问A地址查看实际内容。`)
+              // 调用后端API获取最终地址
+              try {
+                const response = await fetch(`https://mf.ppis.me/api/track-redirect?url=${encodeURIComponent(qrCodeUrl)}`)
+                if (response.ok) {
+                  const data = await response.json()
+                  const finalUrl = data.finalUrl
+                  console.log('🅱️ 最终地址:', finalUrl)
+                  alert(`二维码解析成功！\n\n🅰️ 二维码地址:\n${qrCodeUrl}\n\n🅱️ 最终地址:\n${finalUrl}`)
+                } else {
+                  console.error('获取最终地址失败:', response.status)
+                  alert(`二维码解析成功！\n\n二维码地址:\n${qrCodeUrl}\n\n⚠️ 无法获取最终地址`)
+                }
+              } catch (error) {
+                console.error('调用API失败:', error)
+                alert(`二维码解析成功！\n\n二维码地址:\n${qrCodeUrl}\n\n⚠️ 网络错误，无法获取最终地址`)
               }
             } else {
               alert('无法解析二维码，请确保图片包含有效的二维码')
@@ -502,87 +511,7 @@ export default {
       return imageData
     },
     
-    // 获取最终跳转URL
-    async getFinalRedirectUrl(initialUrl) {
-      try {
-        // 使用代理服务器地址进行重定向追踪（通过vite.config.js代理到https://mf.ppis.me）
-        const apiUrl = `/apii/track-redirect?url=${encodeURIComponent(initialUrl)}`
-        const response = await fetch(apiUrl, {
-          method: 'GET',
-          mode: 'cors',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          console.log('🔗 重定向追踪详情:')
-          console.log('   原始URL:', data.originalUrl)
-          console.log('   重定向次数:', data.redirectCount)
-          console.log('   最终地址 (finalUrl):', data.finalUrl)
-          if (data.redirectCount > 0) {
-            console.log(`   跳转路径: 二维码 → ${data.redirectCount === 1 ? 'A' : data.redirectCount === 2 ? 'A → B' : 'A → B → C...'} → 最终地址`)
-          }
-          return data.finalUrl
-        } else {
-          console.error('API请求失败:', response.status, response.statusText)
-          // 如果API不可用，尝试客户端方法
-          return await this.trackRedirectClient(initialUrl)
-        }
-      } catch (error) {
-        console.error('获取最终URL失败:', error)
-        // 降级到客户端方法
-        return await this.trackRedirectClient(initialUrl)
-      }
-    },
-    
-    // 客户端跟踪重定向
-    async trackRedirectClient(url) {
-      let currentUrl = url;
-      let finalUrl = url;
-      let redirectCount = 0;
-      const maxRedirects = 10; // 防止无限重定向
 
-      while (redirectCount < maxRedirects) {
-        try {
-          const response = await fetch(currentUrl, { redirect: 'manual' });
-
-          // 检查是否是CORS重定向（opaque response）
-          if (response.type === 'opaque' || response.status === 0) {
-            console.log('🚫 遇到CORS重定向，无法继续追踪');
-            // 前端无法获取被CORS阻止的URL，直接返回原始URL
-            return url;
-          }
-
-          if (response.status >= 300 && response.status < 400) {
-            const redirectUrl = response.headers.get('Location');
-            if (redirectUrl) {
-              currentUrl = new URL(redirectUrl, currentUrl).href; // 处理相对URL
-              finalUrl = currentUrl;
-              redirectCount++;
-              console.log(`🔄 重定向 ${redirectCount}: ${currentUrl}`);
-            } else {
-              break; // 没有Location头，结束循环
-            }
-          } else {
-            break; // 非重定向状态，结束循环
-          }
-        } catch (error) {
-          console.error('客户端跟踪失败:', error);
-          
-          // CORS错误时，前端无法获取目标URL
-          if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-            console.log('🚫 网络错误或CORS限制，前端无法获取目标URL');
-          }
-          
-          return url; // 返回原始URL
-        }
-      }
-
-      console.log(`✅ 客户端追踪完成，共 ${redirectCount} 次重定向`);
-      return finalUrl;
-    },
     
     // 修改URL参数
     modifyUrlParameters(url, timeId) {
