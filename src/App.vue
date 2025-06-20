@@ -341,7 +341,6 @@ export default {
                   const timeOption = this.timeOptions.find(option => option.id === timeId)
                   if (timeOption) {
                     timeOption.savedUrl = finalUrl
-                    timeOption.lastUpdate = new Date().toISOString()
                     this.saveTimeData()
                     console.log(`✅ 已保存到 ${timeId} 时间段:`, finalUrl)
                   }
@@ -350,8 +349,15 @@ export default {
                   try {
                     await this.saveUrlToKV(timeId, finalUrl)
                     console.log('✅ 已保存到KV存储')
+                    
+                    // 保存成功后重新从KV读取数据以获取正确的时间戳
+                    await this.loadRealUrlsFromKV()
                   } catch (kvError) {
                     console.warn('保存到KV失败，但已保存到本地:', kvError)
+                    // KV保存失败时使用当前时间
+                    if (timeOption) {
+                      timeOption.lastUpdate = new Date().toISOString()
+                    }
                   }
                 } else {
                   console.error('获取最终地址失败:', response.status)
