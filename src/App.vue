@@ -134,7 +134,7 @@
     </footer>
     
     <!-- Toast 通知 -->
-    <div v-if="showToast" class="toast" :class="`toast-${toastType}`">
+    <div v-if="showToast && toastMessage" class="toast" :class="`toast-${toastType}`">
       <div class="toast-content">
         <span class="toast-icon">{{ toastType === 'success' ? '✅' : '⚠️' }}</span>
         <span class="toast-message">{{ toastMessage }}</span>
@@ -677,12 +677,14 @@ export default {
       // 3秒后自动关闭Toast
       setTimeout(() => {
         this.showToast = false
+        this.toastMessage = ''
       }, 3000)
     },
     
     // 手动关闭Toast
     closeToast() {
       this.showToast = false
+      this.toastMessage = ''
     },
     
     // 从KV获取URL
