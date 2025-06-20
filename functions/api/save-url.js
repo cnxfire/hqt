@@ -66,12 +66,6 @@ export async function onRequestPost(context) {
     const key = `url_${timeId}`;
     await env.HONGQINGTING_KV.put(key, JSON.stringify(urlData));
     
-    // 同时保存一个历史记录
-    const historyKey = `url_history_${timeId}_${Date.now()}`;
-    await env.HONGQINGTING_KV.put(historyKey, JSON.stringify(urlData), {
-      expirationTtl: 30 * 24 * 60 * 60 // 30天后过期
-    });
-    
     return new Response(JSON.stringify({
       success: true,
       message: 'URL保存成功',

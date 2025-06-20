@@ -82,7 +82,7 @@ export async function onRequestGet(context) {
 // 查找指定时间段的最新真实地址数据
 async function findLatestRealUrl(env, timeId) {
   try {
-    // 首先尝试获取当前的URL数据（键名格式：url_2h）
+    // 获取当前的URL数据（键名格式：url_2h）
     const currentKey = `url_${timeId}`;
     const currentData = await env.HONGQINGTING_KV.get(currentKey);
     
@@ -98,34 +98,6 @@ async function findLatestRealUrl(env, timeId) {
       };
     }
     
-    // 如果没有当前数据，尝试查找历史数据
-    const historyPrefix = `url_history_${timeId}_`;
-    const historyList = await env.HONGQINGTING_KV.list({ prefix: historyPrefix });
-    
-    if (historyList.keys && historyList.keys.length > 0) {
-      // 按时间戳排序，获取最新的历史数据
-      const sortedKeys = historyList.keys.sort((a, b) => {
-        const timestampA = extractHistoryTimestamp(a.name);
-        const timestampB = extractHistoryTimestamp(b.name);
-        return timestampB - timestampA; // 降序排列，最新的在前
-      });
-      
-      const latestKey = sortedKeys[0].name;
-      const data = await env.HONGQINGTING_KV.get(latestKey);
-      
-      if (data) {
-        const parsedData = JSON.parse(data);
-        return {
-          key: latestKey,
-          originalUrl: parsedData.url,
-          finalUrl: parsedData.url,
-          redirectCount: 0,
-          timestamp: parsedData.timestamp,
-          expireTime: null
-        };
-      }
-    }
-    
     return null;
   } catch (error) {
     console.error(`查找 ${timeId} 真实地址数据失败:`, error);
@@ -133,15 +105,7 @@ async function findLatestRealUrl(env, timeId) {
   }
 }
 
-// 从历史键名中提取时间戳
-function extractHistoryTimestamp(keyName) {
-  // 键名格式: url_history_{timeId}_{timestamp}
-  const parts = keyName.split('_');
-  if (parts.length >= 4) {
-    return parseInt(parts[3]) || 0;
-  }
-  return 0;
-}
+
 
 // 处理CORS预检请求
 export async function onRequestOptions(context) {

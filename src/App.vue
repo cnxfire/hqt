@@ -623,8 +623,10 @@ export default {
                 // 如果当前没有保存的URL，则使用从KV读取的真实地址
                 if (!timeOption.savedUrl) {
                   timeOption.savedUrl = realUrlData.finalUrl
-                  timeOption.lastUpdate = realUrlData.timestamp
                 }
+                
+                // 始终使用KV中的时间戳作为最后更新时间
+                timeOption.lastUpdate = realUrlData.timestamp
                 
                 // 在时间按钮上显示真实地址信息
                 timeOption.realUrlInfo = {
