@@ -132,6 +132,15 @@
         <p>&copy; 2024 红蜻蜓. 基于 Vue.js 和 Cloudflare Pages 构建</p>
       </div>
     </footer>
+    
+    <!-- Toast 通知 -->
+    <div v-if="showToast" class="toast" :class="`toast-${toastType}`">
+      <div class="toast-content">
+        <span class="toast-icon">{{ toastType === 'success' ? '✅' : '⚠️' }}</span>
+        <span class="toast-message">{{ toastMessage }}</span>
+        <button @click="closeToast" class="toast-close">×</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -143,6 +152,9 @@ export default {
       loading: false,
       kvStatus: null,
       selectedTime: null,
+      showToast: false,
+      toastMessage: '',
+      toastType: 'success',
       timeOptions: [
         {
           id: '2h',
@@ -352,12 +364,17 @@ export default {
                     
                     // 保存成功后重新从KV读取数据以获取正确的时间戳
                     await this.loadRealUrlsFromKV()
+                    
+                    // 显示成功Toast
+                    this.showToast(`${timeOption.label}时间段保存成功！`)
                   } catch (kvError) {
                     console.warn('保存到KV失败，但已保存到本地:', kvError)
                     // KV保存失败时使用当前时间
                     if (timeOption) {
                       timeOption.lastUpdate = new Date().toISOString()
                     }
+                    // 显示本地保存成功的提示
+                    this.showToast(`${timeOption.label}时间段已保存到本地！`, 'warning')
                   }
                 } else {
                   console.error('获取最终地址失败:', response.status)
@@ -649,6 +666,23 @@ export default {
       }
       
       console.log('✅ KV真实地址数据读取完成')
+    },
+    
+    // 显示Toast通知
+    showToast(message, type = 'success') {
+      this.toastMessage = message
+      this.toastType = type
+      this.showToast = true
+      
+      // 3秒后自动关闭Toast
+      setTimeout(() => {
+        this.showToast = false
+      }, 3000)
+    },
+    
+    // 手动关闭Toast
+    closeToast() {
+      this.showToast = false
     },
     
     // 从KV获取URL
@@ -1108,6 +1142,97 @@ export default {
   
   .meta-item {
     text-align: center;
+  }
+}
+
+/* Toast 通知样式 */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  min-width: 300px;
+  max-width: 500px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: slideInRight 0.3s ease-out;
+}
+
+.toast-content {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: white;
+  border-radius: 8px;
+  border-left: 4px solid;
+}
+
+.toast-success .toast-content {
+  border-left-color: #10b981;
+  background: #f0fdf4;
+}
+
+.toast-warning .toast-content {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.toast-error .toast-content {
+  border-left-color: #ef4444;
+  background: #fef2f2;
+}
+
+.toast-icon {
+  font-size: 18px;
+  margin-right: 8px;
+}
+
+.toast-message {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.toast-close:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .toast {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    min-width: auto;
+    max-width: none;
   }
 }
 </style>
