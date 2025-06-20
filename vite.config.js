@@ -12,7 +12,7 @@ export default defineConfig({
     port: 3000,
     open: true,
     proxy: {
-      '/api': {
+      '/api/track-redirect': {
         target: 'https://mf.ppis.me',
         changeOrigin: true,
         secure: true,
