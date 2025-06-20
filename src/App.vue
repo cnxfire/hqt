@@ -76,7 +76,7 @@
               </div>
               
               <!-- 显示从KV读取的真实地址信息 -->
-              <div v-if="timeOption.realUrlInfo" class="real-url-info">
+              <!-- <div v-if="timeOption.realUrlInfo" class="real-url-info">
                 <h4 class="real-url-title">📍 真实地址信息</h4>
                 <div class="real-url-details">
                   <div class="url-item">
@@ -97,7 +97,7 @@
                     <span class="meta-item">⏳ 过期时间: {{ formatUpdateTime(timeOption.realUrlInfo.expireTime) }}</span>
                   </div>
                 </div>
-              </div>
+              </div> -->
             </div>
           </div>
         </div>
