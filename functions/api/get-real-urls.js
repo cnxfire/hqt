@@ -82,23 +82,34 @@ export async function onRequestGet(context) {
 // 查找指定时间段的最新真实地址数据
 async function findLatestRealUrl(env, timeId) {
   try {
-    // 列出所有以 real_url_{timeId}_ 开头的键
-    const prefix = `real_url_${timeId}_`;
-    const list = await env.HONGQINGTING_KV.list({ prefix });
+    // 首先尝试获取当前的URL数据（键名格式：url_2h）
+    const currentKey = `url_${timeId}`;
+    const currentData = await env.HONGQINGTING_KV.get(currentKey);
     
-    if (!list.keys || list.keys.length === 0) {
-      return null;
+    if (currentData) {
+      const parsedData = JSON.parse(currentData);
+      return {
+        key: currentKey,
+        originalUrl: parsedData.url, // 注意这里字段名是url而不是originalUrl
+        finalUrl: parsedData.url,
+        redirectCount: 0, // 当前数据没有重定向信息
+        timestamp: parsedData.timestamp,
+        expireTime: null // 当前数据没有过期时间
+      };
     }
     
-    // 按时间戳排序，获取最新的数据
-    const sortedKeys = list.keys.sort((a, b) => {
-      // 从键名中提取时间戳
-      const timestampA = extractTimestamp(a.name);
-      const timestampB = extractTimestamp(b.name);
-      return timestampB - timestampA; // 降序排列，最新的在前
-    });
+    // 如果没有当前数据，尝试查找历史数据
+    const historyPrefix = `url_history_${timeId}_`;
+    const historyList = await env.HONGQINGTING_KV.list({ prefix: historyPrefix });
     
-    if (sortedKeys.length > 0) {
+    if (historyList.keys && historyList.keys.length > 0) {
+      // 按时间戳排序，获取最新的历史数据
+      const sortedKeys = historyList.keys.sort((a, b) => {
+        const timestampA = extractHistoryTimestamp(a.name);
+        const timestampB = extractHistoryTimestamp(b.name);
+        return timestampB - timestampA; // 降序排列，最新的在前
+      });
+      
       const latestKey = sortedKeys[0].name;
       const data = await env.HONGQINGTING_KV.get(latestKey);
       
@@ -106,11 +117,11 @@ async function findLatestRealUrl(env, timeId) {
         const parsedData = JSON.parse(data);
         return {
           key: latestKey,
-          originalUrl: parsedData.originalUrl,
-          finalUrl: parsedData.finalUrl,
-          redirectCount: parsedData.redirectCount,
+          originalUrl: parsedData.url,
+          finalUrl: parsedData.url,
+          redirectCount: 0,
           timestamp: parsedData.timestamp,
-          expireTime: parsedData.expireTime
+          expireTime: null
         };
       }
     }
@@ -122,9 +133,9 @@ async function findLatestRealUrl(env, timeId) {
   }
 }
 
-// 从键名中提取时间戳
-function extractTimestamp(keyName) {
-  // 键名格式: real_url_{timeId}_{timestamp}_{randomString}
+// 从历史键名中提取时间戳
+function extractHistoryTimestamp(keyName) {
+  // 键名格式: url_history_{timeId}_{timestamp}
   const parts = keyName.split('_');
   if (parts.length >= 4) {
     return parseInt(parts[3]) || 0;
