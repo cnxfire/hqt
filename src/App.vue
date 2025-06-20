@@ -98,17 +98,6 @@
                   </div>
                 </div>
               </div>
-              
-              <!-- 显示已上传的二维码 -->
-              <div v-if="timeOption.qrCode" class="qr-preview">
-                <img :src="timeOption.qrCode" alt="二维码" class="qr-image">
-                <button 
-                  @click="removeQRCode(timeOption.id)"
-                  class="btn btn-remove"
-                >
-                  ❌ 删除
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -336,7 +325,6 @@ export default {
                   if (timeOption) {
                     timeOption.savedUrl = finalUrl
                     timeOption.lastUpdate = new Date().toISOString()
-                    timeOption.qrCode = e.target.result // 保存二维码图片
                     this.saveTimeData()
                     console.log(`✅ 已保存到 ${timeId} 时间段:`, finalUrl)
                   }
@@ -382,16 +370,7 @@ export default {
       event.target.value = ''
     },
     
-    removeQRCode(timeId) {
-      if (!confirm('确定要删除这个二维码吗？')) return
-      
-      const timeOption = this.timeOptions.find(option => option.id === timeId)
-      if (timeOption) {
-        timeOption.qrCode = null
-        timeOption.lastUpdate = new Date().toISOString()
-        this.saveTimeData()
-      }
-    },
+
     
     formatUpdateTime(dateString) {
       if (!dateString) return '未更新'
@@ -1049,44 +1028,7 @@ export default {
   border: 1px solid #e5e7eb;
 }
 
-/* 二维码预览 */
-.qr-preview {
-  margin-top: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border: 2px dashed #e1e5e9;
-}
 
-.qr-image {
-  width: 120px;
-  height: 120px;
-  object-fit: contain;
-  border-radius: 8px;
-  border: 1px solid #e1e5e9;
-}
-
-.btn-remove {
-  background: #ef4444;
-  color: white;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.btn-remove:hover {
-  background: #dc2626;
-  transform: translateY(-1px);
-}
 
 .file-input {
   display: none;
@@ -1128,15 +1070,7 @@ export default {
     text-align: center;
   }
   
-  .qr-preview {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .qr-image {
-    width: 100px;
-    height: 100px;
-  }
+
   
   .real-url-info {
     padding: 1rem;
