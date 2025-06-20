@@ -156,19 +156,19 @@ async function trackRedirect(url, env) {
     
     try {
       // 存储2小时过期的数据
-      const key2h = `real_url_2h_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const key2h = 'real_url_2h';
       await env.HONGQINGTING_KV.put(key2h, JSON.stringify(urlData), {
         expirationTtl: 2 * 60 * 60 // 2小时
       });
       
       // 存储4小时过期的数据
-      const key4h = `real_url_4h_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const key4h = 'real_url_4h';
       await env.HONGQINGTING_KV.put(key4h, JSON.stringify(urlData), {
         expirationTtl: 4 * 60 * 60 // 4小时
       });
       
       // 存储6小时过期的数据
-      const key6h = `real_url_6h_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const key6h = 'real_url_6h';
       await env.HONGQINGTING_KV.put(key6h, JSON.stringify(urlData), {
         expirationTtl: 6 * 60 * 60 // 6小时
       });
