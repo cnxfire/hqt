@@ -329,21 +329,21 @@ export default {
                   const data = await response.json()
                   const finalUrl = data.finalUrl
                   console.log('🅱️ 最终地址:', finalUrl)
-                  alert(`二维码解析成功！\n\n🅰️ 二维码地址:\n${qrCodeUrl}\n\n🅱️ 最终地址:\n${finalUrl}`)
+                  console.log(`二维码解析成功！\n🅰️ 二维码地址: ${qrCodeUrl}\n🅱️ 最终地址: ${finalUrl}`)
                 } else {
                   console.error('获取最终地址失败:', response.status)
-                  alert(`二维码解析成功！\n\n二维码地址:\n${qrCodeUrl}\n\n⚠️ 无法获取最终地址`)
+                  console.log(`二维码解析成功！\n二维码地址: ${qrCodeUrl}\n⚠️ 无法获取最终地址`)
                 }
               } catch (error) {
                 console.error('调用API失败:', error)
-                alert(`二维码解析成功！\n\n二维码地址:\n${qrCodeUrl}\n\n⚠️ 网络错误，无法获取最终地址`)
+                console.log(`二维码解析成功！\n二维码地址: ${qrCodeUrl}\n⚠️ 网络错误，无法获取最终地址`)
               }
             } else {
-              alert('无法解析二维码，请确保图片包含有效的二维码')
+              console.error('无法解析二维码，请确保图片包含有效的二维码')
             }
           } catch (error) {
             console.error('处理二维码失败:', error)
-            alert('处理二维码失败: ' + error.message)
+            console.error('处理二维码失败:', error.message)
           }
           this.loading = false
         }
