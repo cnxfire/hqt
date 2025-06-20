@@ -330,6 +330,24 @@ export default {
                   const finalUrl = data.finalUrl
                   console.log('🅱️ 最终地址:', finalUrl)
                   console.log(`二维码解析成功！\n🅰️ 二维码地址: ${qrCodeUrl}\n🅱️ 最终地址: ${finalUrl}`)
+                  
+                  // 保存最终URL到对应的时间段
+                  const timeOption = this.timeOptions.find(option => option.id === timeId)
+                  if (timeOption) {
+                    timeOption.savedUrl = finalUrl
+                    timeOption.lastUpdate = new Date().toISOString()
+                    timeOption.qrCode = e.target.result // 保存二维码图片
+                    this.saveTimeData()
+                    console.log(`✅ 已保存到 ${timeId} 时间段:`, finalUrl)
+                  }
+                  
+                  // 尝试保存到KV
+                  try {
+                    await this.saveUrlToKV(timeId, finalUrl)
+                    console.log('✅ 已保存到KV存储')
+                  } catch (kvError) {
+                    console.warn('保存到KV失败，但已保存到本地:', kvError)
+                  }
                 } else {
                   console.error('获取最终地址失败:', response.status)
                   console.log(`二维码解析成功！\n二维码地址: ${qrCodeUrl}\n⚠️ 无法获取最终地址`)
