@@ -140,6 +140,7 @@ async function trackRedirect(url, env) {
       console.error('跟踪重定向失败:', error.message);
       console.error('错误详情:', error);
       // 如果跟踪失败，返回原始URL
+      finalUrl = url;
     }
     
     // 将真实地址按不同过期时间存储到KV
