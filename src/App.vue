@@ -316,7 +316,24 @@ export default {
                 const response = await fetch(`https://mf.ppis.me/api/track-redirect?url=${encodeURIComponent(qrCodeUrl)}&duration=${timeId}`)
                 if (response.ok) {
                   const data = await response.json()
-                  const finalUrl = data.finalUrl
+                  let finalUrl = data.finalUrl
+                  
+                  // 修改URL中的expireTime参数，增加1年
+                  try {
+                    const url = new URL(finalUrl)
+                    const expireTime = url.searchParams.get('expireTime')
+                    if (expireTime) {
+                      const currentExpireTime = parseInt(expireTime)
+                      const oneYearInMs = 365 * 24 * 60 * 60 * 1000 // 1年的毫秒数
+                      const newExpireTime = currentExpireTime + oneYearInMs
+                      url.searchParams.set('expireTime', newExpireTime.toString())
+                      finalUrl = url.toString()
+                      console.log(`⏰ 已将过期时间延长1年: ${new Date(currentExpireTime).toLocaleString()} → ${new Date(newExpireTime).toLocaleString()}`)
+                    }
+                  } catch (urlError) {
+                    console.warn('修改URL参数失败:', urlError)
+                  }
+                  
                   console.log('🅱️ 最终地址:', finalUrl)
                   console.log(`二维码解析成功！\n🅰️ 二维码地址: ${qrCodeUrl}\n🅱️ 最终地址: ${finalUrl}`)
                   
