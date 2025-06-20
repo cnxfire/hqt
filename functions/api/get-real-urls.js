@@ -82,19 +82,35 @@ export async function onRequestGet(context) {
 // 查找指定时间段的最新真实地址数据
 async function findLatestRealUrl(env, timeId) {
   try {
-    // 获取当前的URL数据（键名格式：url_2h）
-    const currentKey = `url_${timeId}`;
-    const currentData = await env.HONGQINGTING_KV.get(currentKey);
+    // 首先尝试获取真实URL数据（键名格式：real_url_2h）
+    const realUrlKey = `real_url_${timeId}`;
+    const realUrlData = await env.HONGQINGTING_KV.get(realUrlKey);
     
-    if (currentData) {
-      const parsedData = JSON.parse(currentData);
+    if (realUrlData) {
+      const parsedData = JSON.parse(realUrlData);
       return {
-        key: currentKey,
-        originalUrl: parsedData.url, // 注意这里字段名是url而不是originalUrl
-        finalUrl: parsedData.url,
-        redirectCount: 0, // 当前数据没有重定向信息
+        key: realUrlKey,
+        originalUrl: parsedData.originalUrl,
+        finalUrl: parsedData.finalUrl,
+        redirectCount: parsedData.redirectCount || 0,
         timestamp: parsedData.timestamp,
-        expireTime: null // 当前数据没有过期时间
+        expireTime: parsedData.expireTime
+      };
+    }
+    
+    // 如果没有真实URL数据，尝试获取基础URL数据（键名格式：url_2h）
+    const basicUrlKey = `url_${timeId}`;
+    const basicUrlData = await env.HONGQINGTING_KV.get(basicUrlKey);
+    
+    if (basicUrlData) {
+      const parsedData = JSON.parse(basicUrlData);
+      return {
+        key: basicUrlKey,
+        originalUrl: parsedData.url,
+        finalUrl: parsedData.url,
+        redirectCount: 0,
+        timestamp: parsedData.timestamp,
+        expireTime: null
       };
     }
     
